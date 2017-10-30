@@ -49,8 +49,27 @@ void WriteHdfLd( h5cpp::Group g, const LatticeDataQuad3d &ld )
   WriteHdfLdGenericPart_(g, ld);
 }
 
+//void WriteHdfLd( H5::Group g, const LatticeDataFCC &ld )
 void WriteHdfLd( h5cpp::Group g, const LatticeDataFCC &ld )
 {
+  /** using "H5Cpp.h"
+  const H5std_string ATTR_NAME("TYPE");
+  
+  // Create new dataspace for attribute
+  H5::DataSpace attr_dataspace = H5::DataSpace(H5S_SCALAR);
+  
+  // Create new string datatype for attribute
+  H5::StrType strdatatype(H5::PredType::C_S1, 256); // of length 256 characters
+
+  // Set up write buffer for attribute
+  const H5std_string strwritebuf ("FCC");
+
+  // Create attribute and write to it
+  H5::Attribute myatt_in = g.createAttribute(ATTR_NAME, strdatatype, attr_dataspace);
+  myatt_in.write(strdatatype, strwritebuf); 
+  */
+  
+  //g.createAttribute("TYPE","FCC");
   h5cpp::Attributes attrs = g.attrs();
   attrs.set("TYPE","FCC");
   WriteHdfLdGenericPart_(g, ld);

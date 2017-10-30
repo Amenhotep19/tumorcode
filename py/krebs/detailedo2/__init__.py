@@ -136,8 +136,10 @@ def computePO2_(gdst, vesselgroup, tumorgroup, parameters):
   if( not tumorgroup):
     tumor_path="not_found_tumor"
   else:
-    tumor_path=str(tumorgroup.name)  
-  pickDetailedO2Library(parameters).computePO2(fn, vessel_path, tumor_path, parameters, parameters.get('calcflow'), gdst)
+    tumor_path=str(tumorgroup.name)
+  dest_fn = str(gdst.file.filename)
+  path_to_group = str(gdst.name)
+  pickDetailedO2Library(parameters).computePO2(fn, vessel_path, tumor_path, parameters, parameters.get('calcflow'), path_to_group)
   #r = pickDetailedO2Library(parameters).computePO2(vesselgroup, tumorgroup, parameters, parameters.get('calcflow'), gdst)
   #return r
 
@@ -167,7 +169,12 @@ def sampleVessels(po2group, vesselgroup, tumorgroup, sample_length):
   ld = krebsutils.read_lattice_data_from_hdf(po2group['field_ld'])
   parameters = readParameters(po2group)
   # call thee c++ stuff
-  samples, fluxes = pickDetailedO2Library(parameters).sampleVessels(vesselgroup, tumorgroup, parameters, po2vessels, po2field, ld, sample_length)
+  fn_vessel = str(vesselgroup.file.filename)
+  vessel_path =str(vesselgroup.name)
+  fn_tumor = str(tumorgroup.file.filename)
+  tumor_path = str(tumorgroup.name)
+  
+  samples, fluxes = pickDetailedO2Library(parameters).sampleVessels(fn_vessel,vessel_path,fn_tumor,tumor_path, parameters, po2vessels, po2field, ld, sample_length)
   # convert units to mlO2/s, and also return dicts
   fluxes = dict((k, f*60.e-12) for k,f in zip(('Jin_root', 'Jout_root', 'Jout_tv', 'tv_cons'), fluxes))
   samples = dict(
@@ -242,7 +249,9 @@ def CopyInputFileInfo_(fdst, fsrc):
 
 def computePO2(f, group_path, parameters, cachelocation):
   if not isinstance(f, h5py.File):
-    f = h5files.open(f, 'r+', search = False)  # we open with r+ because the cachelocation might be this file so we need to be able to write to it
+    f = h5files.open(f, 'r+', search = False)  
+    # we open with r+ because the cachelocation might be this file so we need to be able to write to it
+    # we write the po2 results to this file
     return computePO2(f, group_path, parameters, cachelocation) # recurse
 
   #==== is this from a tumor sim, or just a vessel network? get hdf group objects =====#

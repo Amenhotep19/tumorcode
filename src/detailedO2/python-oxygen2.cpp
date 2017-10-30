@@ -28,6 +28,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
   #include "mpi.h"
 #endif
 
+#include "H5Cpp.h"
+
 #define BOOST_RESULT_OF_USE_DECLTYPE 1
 
 #include <boost/foreach.hpp>
@@ -168,21 +170,23 @@ inline boost::optional<T> getOptional(const char* name, py::dict &d)
  * Calls the important stuff.
  */
 //static void PyComputePO2(py::object py_vesselgroup, py::object py_tumorgroup, py::dict py_parameters, py::object py_bfparams, py::object py_h5outputGroup)
-static void PyComputePO2(string fn, string vesselgroup_path, string tumorgroup_path, py::dict py_parameters, py::object py_bfparams, py::object py_h5outputGroup)
+static void PyComputePO2(string output_fn, string vesselgroup_path, string tumorgroup_path, py::dict py_parameters, py::object py_bfparams, string outputGroup_path )
 {
   Parameters params;
   InitParameters(params, py_parameters);
   cout << "parameters initialized" << std::endl;
   
   //h5cpp::Group vesselgroup = PythonToCppGroup(py_vesselgroup);
-  h5cpp::File *readInFile = new h5cpp::File(fn,"r");
+  /** we read in from the same output file,
+   * since a flow recomputation was done on the python side at this stage
+   * readInFile == outputfile
+   */
+  h5cpp::File *readInFile = new h5cpp::File(output_fn,"r+");
   h5cpp::Group vesselgroup = h5cpp::Group(readInFile->root().open_group(vesselgroup_path)); // groupname should end by vesselgroup
   //checks if we have a REALWORLD simuation or a lattice
   
   //world = vesselgroup.attrs().get<string>("CLASS") == "REALWORLD";
   const std::auto_ptr<VesselList3d> vl = ReadVesselList3d(vesselgroup, make_ptree("filter",false));
-  
-  
   
   
   // THIIIIRYYYYY, filter muss = false sein sonst stimmt in der Ausgabe in der Hdf5 Datei die Anzahl der Vessels nicht mehr mit den daten im recomputed_flow Verzeichnis ueberein!
@@ -232,6 +236,7 @@ static void PyComputePO2(string fn, string vesselgroup_path, string tumorgroup_p
    * MOST IMPORTANT CALL
    * grid is conitnuum grid, mtboxes is decomposition into threads
    */
+  readInFile->close();
   s.run(*vl);
   //DetailedPO2::ComputePO2(params, *vl, grid, mtboxes, po2field, po2vessels, phases, metadata, world);
   }
@@ -247,12 +252,24 @@ static void PyComputePO2(string fn, string vesselgroup_path, string tumorgroup_p
   return py::make_tuple(py_po2vessels, py_ld, py_po2field);
 #endif
   {
-    h5cpp::Group outputGroup = PythonToCppGroup(py_h5outputGroup);
-    h5cpp::Group ldgroup = outputGroup.create_group("field_ld");
+    //write the final results!!!
+    cout<< "create output "<< endl;
+    cout.flush();
+//    h5cpp::File *outputFile = new h5cpp::File(output_fn,"a");
+//    h5cpp::Group outputGroup = h5cpp::Group(outputFile->root().open_group(outputGroup_path));
+    h5cpp::File *outputFile = new h5cpp::File("/home/thierry3000/output/bla.h5","a");
+#if 0
+    H5::H5File file( "/home/thierry3000/output/bla.h5", H5F_ACC_TRUNC );
+    H5::Group ldgroup = file.createGroup("field_ld");
+#endif
+//     h5cpp::Group outputGroup = outputFile.root();
+//     //h5cpp::Group outputGroup = PythonToCppGroup(py_h5outputGroup);
+    h5cpp::Group ldgroup = outputFile->root().create_group("field_ld");
     WriteHdfLd(ldgroup, s.grid.ld);
-    WriteScalarField<float>(outputGroup, "po2field", s.po2field, s.grid.ld, ldgroup);
-    h5cpp::create_dataset<float>(outputGroup, "po2vessels", h5cpp::Dataspace::simple_dims(s.po2vessels.size(), 2), (float*)s.po2vessels[0].data(), h5cpp::CREATE_DS_COMPRESSED); // FIX ME: transpose the array!
-    WriteHdfPtree(outputGroup, s.metadata, HDF_WRITE_PTREE_AS_DATASETS);
+//     WriteScalarField<float>(outputGroup, "po2field", s.po2field, s.grid.ld, ldgroup);
+//     h5cpp::create_dataset<float>(outputGroup, "po2vessels", h5cpp::Dataspace::simple_dims(s.po2vessels.size(), 2), (float*)s.po2vessels[0].data(), h5cpp::CREATE_DS_COMPRESSED); // FIX ME: transpose the array!
+//     WriteHdfPtree(outputGroup, s.metadata, HDF_WRITE_PTREE_AS_DATASETS);
+//     outputFile.close();
   }
 }
 
@@ -471,10 +488,15 @@ static Eigen::Matrix<float, rows, 1> LinearInterpolation(float xeval, const DynA
 #if BOOST_VERSION>106300
 #else
 // may be a measurement class can come back later when it makes more sense to store persistent data between analysis steps
-py::object PySampleVessels(py::object py_vesselgroup, py::object py_tumorgroup, py::dict py_parameters, nm::array py_vesselpo2, nm::array py_po2field, const LatticeDataQuad3d &field_ld, float sample_len)
+// py::object PySampleVessels(py::object py_vesselgroup, py::object py_tumorgroup, py::dict py_parameters, nm::array py_vesselpo2, nm::array py_po2field, const LatticeDataQuad3d &field_ld, float sample_len)
+py::object PySampleVessels(string fn_vessel, string vessel_path, string fn_tumor, string tumor_group, py::object py_tumorgroup, py::dict py_parameters, nm::array py_vesselpo2, nm::array py_po2field, const LatticeDataQuad3d &field_ld, float sample_len)
 {
   bool world = false;
-  h5cpp::Group vesselgroup = PythonToCppGroup(py_vesselgroup);
+//   h5cpp::Group vesselgroup = PythonToCppGroup(py_vesselgroup);
+  /** INTERFACE */
+  h5cpp::File *readInFile = new h5cpp::File(fn_vessel,"r");
+  h5cpp::Group vesselgroup = h5cpp::Group(readInFile->root().open_group(vessel_path));
+  
   std::auto_ptr<VesselList3d> vl_ = ReadVesselList3d(vesselgroup, make_ptree("filter",false));
   const VesselList3d &vl = *vl_;
   
@@ -486,9 +508,12 @@ py::object PySampleVessels(py::object py_vesselgroup, py::object py_tumorgroup, 
   
   TissuePhases phases;//Declaration
   h5cpp::Group tumorgroup;
-  if (!py_tumorgroup.is_none())
+  
+  if (!fn_tumor.empty())
   {
-    tumorgroup = PythonToCppGroup(py_tumorgroup);
+    h5cpp::File *tumorReadInFile = new h5cpp::File(fn_tumor,"r");
+    h5cpp::Group tumorgroup = h5cpp::Group(tumorReadInFile->root().open_group(tumor_group));
+    //tumorgroup = PythonToCppGroup(py_tumorgroup);
   }
   SetupTissuePhases(phases, grid, mtboxes, tumorgroup);//filling
   
@@ -708,7 +733,7 @@ void export_oxygen_computation()
 //  py::def("computeMassTransferCoefficient_", PyComputeMassTransferCoefficient);
 //   py::def("computePO2FromConc_", PyComputePO2FromConc);
 //   py::def("computeO2Uptake", PyComputeUptake);
-//   py::def("sampleVessels", PySampleVessels);
+  py::def("sampleVessels", PySampleVessels);
 //   py::def("sampleVesselsWorld", PySampleVesselsWorld);
   // just some tests
   py::def("testCalcOxy", TestSaturationCurve);

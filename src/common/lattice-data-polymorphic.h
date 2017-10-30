@@ -28,7 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <boost/unordered_map.hpp>
 
 #include <boost/graph/graph_concepts.hpp>
-
+#include "H5Cpp.h"
 
 // forward declaration, their location may change
 void WriteHdfLd( h5cpp::Group f, const LatticeDataQuad3d &ld );

@@ -21,6 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define HDF_WRAPPER_ARRAY3D_H
 
 #include "hdf_wrapper.h"
+//#include "H5Cpp.h"
 #include "hdf_wrapper_vec.h"
 #include "field.h"
 #include "lattice-data.h"
